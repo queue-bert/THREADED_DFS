@@ -4,60 +4,6 @@ volatile sig_atomic_t flag = 0;
 
 char * cwd = NULL;
 
-int connect_to_servers(int **sockets, int * server_tot)
-{
-    // FILE *file = fopen("dfc.conf", "r");
-    FILE * file = fopen(strcat(getenv("HOME"), "/dfc.conf"), "r");
-    if (file == NULL) {
-        perror("Error opening file\n");
-        return -1;
-    }
-
-    char line[256];
-    char host[50];
-    int port;
-
-    struct sockaddr_in server_addr;
-    int socket_fd;
-    int server_count = 0;
-
-    while (fgets(line, sizeof(line), file)) {
-        printf("CONNECTED SERVER\n");
-        *server_tot = *server_tot + 1;
-        if (sscanf(line, "server %*s %49[^:]:%d", host, &port) == 2) {
-            socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-            if (socket_fd < 0) {
-                perror("Error creating socket");
-                printf("Error creating socket\n");
-                fclose(file);
-                return -1;
-            }
-
-            server_addr.sin_family = AF_INET;
-            server_addr.sin_port = htons(port);
-            if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
-                perror("Error converting IP address");
-                printf("Error converting IP address\n");
-                close(socket_fd);
-                fclose(file);
-                return -1;
-            }
-
-            if (connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-                perror("Error connecting to server");
-                printf("Error connecting to server\n");
-                close(socket_fd);
-                continue;
-            }
-
-            *sockets = realloc(*sockets, (server_count + 1) * sizeof(int));
-            (*sockets)[server_count++] = socket_fd;
-        }
-    }
-    printf("END OF GETTING SERVERS\n");
-    fclose(file);
-    return server_count;
-}
 
 int check(int stat, char* message)
 {
@@ -73,6 +19,54 @@ int check(int stat, char* message)
     }
 }
 
+int connect_to_servers(int **sockets, int *server_tot, const char *buffer) {
+    char line[256];
+    char host[50];
+    int port;
+
+    struct sockaddr_in server_addr;
+    int socket_fd;
+    int server_count = 0;
+
+    const char *buffer_ptr = buffer;
+
+    while (sscanf(buffer_ptr, "%255[^\n]", line) > 0) {
+        printf("CONNECTED SERVER\n");
+        *server_tot = *server_tot + 1;
+        if (sscanf(line, "server %*s %49[^:]:%d", host, &port) == 2) {
+            socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+            if (socket_fd < 0) {
+                perror("Error creating socket");
+                printf("Error creating socket\n");
+                continue;
+                // return -1;
+            }
+
+            server_addr.sin_family = AF_INET;
+            server_addr.sin_port = htons(port);
+            if (inet_pton(AF_INET, host, &server_addr.sin_addr) <= 0) {
+                perror("Error converting IP address");
+                printf("Error converting IP address\n");
+                close(socket_fd);
+                continue;
+                // return -1;
+            }
+
+            if (connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+                perror("Error connecting to server");
+                printf("Error connecting to server\n");
+                close(socket_fd);
+                continue;
+            }
+
+            *sockets = realloc(*sockets, (server_count + 1) * sizeof(int));
+            (*sockets)[server_count++] = socket_fd;
+        }
+        buffer_ptr += strlen(line) + 1; // Move to the next line
+    }
+    printf("END OF GETTING SERVERS\n");
+    return server_count;
+}
 
 void connect_and_send(int *client_socket_fd) {
     int client_socket = *client_socket_fd;
@@ -88,118 +82,125 @@ void connect_and_send(int *client_socket_fd) {
     char full_path[1000];
 
     setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, sizeof(timeout));
-    for (;;) {
+    
+
+    // for(;;)
+    // {
         memset(buffer, 0, BUFSIZE + 1);
         msg_size = 0;
         buffer[BUFSIZE] = '\0';
-
+        // send(client_socket, buffer, sizeof(buffer),0);
         while (1)
         {
             if (check((n = read(client_socket, buffer + msg_size, sizeof(buffer) - msg_size - 1)), "CONNECTION TIMEOUT"))
             {
+                printf("SOCKET TIMEOUT\n");
                 close(client_socket);
                 return;
             }
             msg_size += n;
             if (msg_size > BUFSIZE - 1 || strstr(buffer, "\r\n\r\n")) break;
         }
-        printf("BUFFER %s\n", buffer);
 
-        // add handling for multiple filenames and also check for less than 2 assignments
-        sscanf(buffer, "%s %s", command, full_filename);
+    // add handling for multiple filenames and also check for less than 2 assignments
+    sscanf(buffer, "%s %s", command, full_filename);
+    printf("%s\n", buffer);
 
-        // Handle "discover" command
-        if (strcmp(command, "discover") == 0) {
-            // Use popen() to get the file list and send it back to the client
-            int out_len = 0;
-            char file_list[BUFSIZE];
-            char cmd[BUFSIZE];
-            // have to handle if the file doesn't exist
-            sprintf(cmd, "ls %s/*%s* 2>/dev/null", cwd, full_filename);
-            FILE *fp = popen(cmd, "r");
-            if (fp != NULL) {
-                while (fgets(file_list, sizeof(file_list) - 1, fp) != NULL) {
-                    out_len = strlen(file_list);
-                    sendall(client_socket, file_list, &out_len);
-                }
-                pclose(fp);
+    // Handle "discover" command
+    if (strcmp(command, "discover") == 0) {
+        // Use popen() to get the file list and send it back to the client
+        int out_len = 0;
+        char file_list[BUFSIZE];
+        char cmd[BUFSIZE];
+        // have to handle if the file doesn't exist
+        sprintf(cmd, "ls %s/*%s* 2>/dev/null", cwd, full_filename);
+        FILE *fp = popen(cmd, "r");
+        if (fp != NULL) {
+            while (fgets(file_list, sizeof(file_list) - 1, fp) != NULL) {
+                out_len = strlen(file_list);
+                sendall(client_socket, file_list, &out_len);
             }
-            out_len = 4;
-            sendall(client_socket, "\r\n\r\n", &out_len); // Send end of response
+            pclose(fp);
         }
-        else if (strcmp(command, "get") == 0)
+        out_len = 4;
+        sendall(client_socket, "\r\n\r\n", &out_len); // Send end of response
+    }
+    else if (strcmp(command, "get") == 0)
+    {
+        // Send the requested file to the client
+        off_t offset = 0;
+        snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
+        int filefd = open(full_path, O_RDONLY);
+        if (filefd != -1)
         {
-            // Send the requested file to the client
-            off_t offset = 0;
-            snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
-            int filefd = open(full_path, O_RDONLY);
-            if (filefd != -1)
+            struct stat st;
+            if (fstat(filefd, &st) == 0)
             {
-                struct stat st;
-                if (fstat(filefd, &st) == 0)
+                off_t file_size = st.st_size;
+                while (file_size > 0)
                 {
-                    off_t file_size = st.st_size;
-                    while (file_size > 0)
+                    ssize_t sent = sendfile(client_socket, filefd, &offset, file_size);
+                    if (sent == -1)
                     {
-                        ssize_t sent = sendfile(client_socket, filefd, &offset, file_size);
-                        if (sent == -1)
-                        {
-                            perror("Error sending file");
-                            break;
-                        }
-                        file_size -= sent;
+                        perror("Error sending file");
+                        break;
                     }
+                    file_size -= sent;
                 }
-                close(filefd);
+                int out_len = 4;
+                sendall(client_socket, "\r\n\r\n", &out_len);
             }
-            else
-            {
-                int out_len = 17;
-                sendall(client_socket, "File not found\r\n\r\n", &out_len); // Send error message if file not found
-            }
-        }
-        else if (strcmp(command, "put") == 0)
-        {
-            memset(buffer, 0, 1025);
-            snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
-            int file = open(full_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            if (file != -1)
-            {
-                while ((n = recv(client_socket, buffer, sizeof(buffer) - 1, 0)) > 0)
-                {
-                    write(file, buffer, n);
-                }
-                close(file);
-            }
-            else
-            {
-                perror("Error creating file");
-            }
-        }
-        else if (strcmp(command, "ls") == 0)
-        {
-            char output[BUFSIZE];
-            int out_len = 4;
-            char cmd[BUFSIZ];
-            sprintf(cmd, "ls %s", cwd);
-            FILE *fp = popen(cmd, "r");
-            if (fp != NULL) {
-                while (fgets(output, sizeof(output) - 1, fp) != NULL) {
-                    out_len = strlen(output);
-                    sendall(client_socket, output, &out_len);
-                }
-                pclose(fp);
-            }
-            out_len = 4;
-            sendall(client_socket, "\r\n\r\n", &out_len); // Send end of response
+            close(filefd);
         }
         else
         {
-            int out_len = 18;
-            sendall(client_socket, "Unknown command\r\n\r\n", &out_len);
+            int out_len = 17;
+            sendall(client_socket, "File not found\r\n\r\n", &out_len); // Send error message if file not found
         }
     }
-    close(client_socket);
+    else if (strcmp(command, "put") == 0)
+    {
+        // char * eoh;
+        send(client_socket, buffer, sizeof(buffer),0);
+        snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
+        int file = open(full_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+        if (file != -1)
+        {
+            while ((n = recv(client_socket, buffer, sizeof(buffer) - 1, 0)) > 0)
+            {
+                write(file, buffer, n);
+            }
+            close(file);
+        }
+        else
+        {
+            perror("Error creating file");
+        }
+    }
+    else if (strcmp(command, "ls") == 0)
+    {
+        char output[BUFSIZE];
+        int out_len = 4;
+        char cmd[BUFSIZ];
+        sprintf(cmd, "ls %s", cwd);
+        FILE *fp = popen(cmd, "r");
+        if (fp != NULL) {
+            while (fgets(output, sizeof(output) - 1, fp) != NULL) {
+                out_len = strlen(output);
+                sendall(client_socket, output, &out_len);
+            }
+            pclose(fp);
+        }
+        out_len = 4;
+        sendall(client_socket, "\r\n\r\n", &out_len); // Send end of response
+    }
+    else
+    {
+        int out_len = 18;
+        sendall(client_socket, "Unknown command\r\n\r\n", &out_len);
+    }
+    // close(client_socket);
+    // }
 }
 
 
@@ -296,3 +297,59 @@ void * thread_function()
     }
     pthread_exit(NULL);
 }
+
+char *read_file_into_buffer() {
+    FILE * file = fopen(strcat(getenv("HOME"), "/dfc.conf"), "r");
+    if (file == NULL) {
+        perror("Error opening CONF\n");
+        return NULL;
+    }
+
+    // Get the file size
+    fseek(file, 0, SEEK_END);
+    size_t size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Allocate memory for the buffer
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        perror("Error allocating memory for buffer");
+        fclose(file);
+        return NULL;
+    }
+
+    // Read the file into the buffer
+    size_t bytes_read = fread(buffer, 1, size, file);
+    if (bytes_read != size) {
+        perror("Error reading file");
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+
+    // Null-terminate the buffer
+    buffer[size] = '\0';
+
+    fclose(file);
+
+    return buffer;
+}
+
+char *str_dup(const char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
+
+    size_t len = strlen(str);
+    char *new_str = (char *)malloc(len + 1);
+
+    if (new_str == NULL) {
+        return NULL;
+    }
+
+    memcpy(new_str, str, len);
+    new_str[len] = '\0';
+
+    return new_str;
+}
+

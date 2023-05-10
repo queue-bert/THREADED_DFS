@@ -35,7 +35,9 @@ extern volatile sig_atomic_t flag;
 
 extern char * cwd;
 
-int connect_to_servers(int **sockets, int * server_tot);
+extern char * config;
+
+int connect_to_servers(int **sockets, int *server_tot, const char *buffer);
 
 char *get_hashed_filename(const char *path);
 
@@ -47,6 +49,10 @@ int check(int stat, char* message);
 
 int sendall(int s, char *buf, int *len);
 
+char *read_file_into_buffer();
+
 void * thread_function();
+
+char *str_dup(const char *str);
 
 #endif
