@@ -81,29 +81,25 @@ void connect_and_send(int *client_socket_fd) {
     char full_filename[261];
     char full_path[1000];
 
-    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, sizeof(timeout));
-    
+    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO | SO_SNDTIMEO, (void *) &timeout, sizeof(timeout));
 
-    // for(;;)
-    // {
+    get:
 
-        get:
-
-        memset(buffer, 0, BUFSIZE + 1);
-        msg_size = 0;
-        buffer[BUFSIZE] = '\0';
-        // send(client_socket, buffer, sizeof(buffer),0);
-        while (1)
+    memset(buffer, 0, BUFSIZE + 1);
+    msg_size = 0;
+    buffer[BUFSIZE] = '\0';
+    // send(client_socket, buffer, sizeof(buffer),0);
+    while (1)
+    {
+        if (check((n = read(client_socket, buffer + msg_size, sizeof(buffer) - msg_size - 1)), "CONNECTION TIMEOUT"))
         {
-            if (check((n = read(client_socket, buffer + msg_size, sizeof(buffer) - msg_size - 1)), "CONNECTION TIMEOUT"))
-            {
-                printf("SOCKET TIMEOUT\n");
-                close(client_socket);
-                return;
-            }
-            msg_size += n;
-            if (msg_size > BUFSIZE - 1 || strstr(buffer, "\r\n\r\n")) break;
+            printf("SOCKET TIMEOUT\n");
+            close(client_socket);
+            return;
         }
+        msg_size += n;
+        if (msg_size > BUFSIZE - 1 || strstr(buffer, "\r\n\r\n")) break;
+    }
 
     // add handling for multiple filenames and also check for less than 2 assignments
     sscanf(buffer, "%s %s", command, full_filename);
@@ -129,7 +125,6 @@ void connect_and_send(int *client_socket_fd) {
     }
     else if (strcmp(command, "get") == 0)
     {
-        // Send the requested file to the client
         off_t offset = 0;
         snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
         printf("filepath: %s\n", full_path);
@@ -150,8 +145,6 @@ void connect_and_send(int *client_socket_fd) {
                     }
                     file_size -= sent;
                 }
-                // int out_len = 4;
-                // sendall(client_socket, "\r\n\r\n", &out_len);
             }
             close(filefd);
         }
@@ -165,8 +158,8 @@ void connect_and_send(int *client_socket_fd) {
     }
     else if (strcmp(command, "put") == 0)
     {
-        // char * eoh;
         send(client_socket, buffer, sizeof(buffer),0);
+
         snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
         printf("filename: %s\n", full_filename);
         int file = open(full_path, O_CREAT | O_WRONLY | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -175,7 +168,6 @@ void connect_and_send(int *client_socket_fd) {
             while ((n = recv(client_socket, buffer, sizeof(buffer) - 1, 0)) > 0)
             {
                 write(file, buffer, n);
-                printf("%s", buffer);
             }
             close(file);
         }
@@ -183,6 +175,8 @@ void connect_and_send(int *client_socket_fd) {
         {
             perror("Error creating file");
         }
+
+        goto get;
     }
     else if (strcmp(command, "ls") == 0)
     {
@@ -206,8 +200,7 @@ void connect_and_send(int *client_socket_fd) {
         int out_len = 18;
         sendall(client_socket, "Unknown command\r\n\r\n", &out_len);
     }
-    // close(client_socket);
-    // }
+
 }
 
 

@@ -40,8 +40,11 @@ run-dfs:
 	gnome-terminal -- bash -c "./dfs ./dfs3 10003; exec bash" &
 	gnome-terminal -- bash -c "./dfs ./dfs4 10004; exec bash" &
 
-run-dfc:
-	gnome-terminal -- bash -c "./dfc localhost 8080; exec bash"
+get-dfc:
+	gnome-terminal -- bash -c "./dfc put dfc.conf foo3; exec bash"
+
+put-dfc:
+	gnome-terminal -- bash -c "./dfc put dfc.conf foo3; exec bash"
 
 run-all: all run-dfs run-dfc
 
@@ -52,7 +55,7 @@ debug-dfs: all
 	gnome-terminal -- bash -c "gdb -ex run --args ./dfs ./dfs4 10004; exec bash" &
 
 debug-dfc: all
-	gnome-terminal -- bash -c "gdb -ex run --args ./dfc localhost 8080; exec bash"
+	gnome-terminal -- bash -c "gdb -ex run --args ./dfc put dfc.conf foo3; exec bash"
 
 debug-all: debug-dfs debug-dfc
 

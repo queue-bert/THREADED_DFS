@@ -22,8 +22,8 @@ int main(int argc, char **argv) {
     struct addrinfo hints, *servinfo, *p;
     size_t n;
     int status;
-    char cmd[10];
-    char filename[256];
+    // char cmd[10];
+    // char filename[256];
     int server_num;
     int server_tot = 0;
     // handling n servers
@@ -35,9 +35,9 @@ int main(int argc, char **argv) {
     int fp;
 
     // change back to 3
-    if (argc != 3)
+    if (argc < 3)
     {
-       fprintf(stderr,"usage: %s <hostname> <file(s)>\n", argv[0]);
+       fprintf(stderr,"usage: %s <cmd> <file(s)>\n", argv[0]);
        exit(0);
     }
 
@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
 
-    if((status = getaddrinfo(argv[1], argv[2], &hints, &servinfo)) != 0)
+    if((status = getaddrinfo("localhost", "8080", &hints, &servinfo)) != 0)
     {
       fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
       return 1;
@@ -72,17 +72,17 @@ int main(int argc, char **argv) {
       return 2;
     }
 
-    while (strcmp(cmd, "exit") != 0)
+    int index = 1;
+    char * cmd = argv[1];
+
+    while (index < argc)
     {
+        index++;
         sleep(1);
-        // printf("AFTER SLEEP\n");
         server_tot = 0;
         server_num = connect_to_servers(&socks, &server_tot, config);
-        // printf("server_tot: %d\n", server_tot);
         memset(buf, 0, sizeof(buf));
-        printf("Please enter msg: ");
-        fgets(buf, sizeof(buf)-1, stdin);
-        sscanf(buf, "%s %s", cmd, filename);
+        char * filename = argv[index];
 
         if(!strcmp(cmd,"get"))
         {
@@ -267,11 +267,11 @@ int main(int argc, char **argv) {
         sendfile(socks[(-mod + 3) % server_num], fp, &start_one, last_chunk);
 
 
-        free_and_close(&socks, server_tot);
-        server_tot = 0;
-        connect_to_servers(&socks, &server_tot, config);
-        close(fp);
-        fp = open(filename, O_RDONLY);
+        // free_and_close(&socks, server_tot);
+        // server_tot = 0;
+        // connect_to_servers(&socks, &server_tot, config);
+        // close(fp);
+        // fp = open(filename, O_RDONLY);
 
         // SECOND CHUNKS
         memset(buf, 0, sizeof(buf));
