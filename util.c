@@ -31,7 +31,8 @@ int connect_to_servers(int **sockets, int *server_tot, const char *buffer) {
     const char *buffer_ptr = buffer;
 
     while (sscanf(buffer_ptr, "%255[^\n]", line) > 0) {
-        printf("CONNECTED SERVER\n");
+        // printf("%s", line);
+        // printf("CONNECTED SERVER\n");
         *server_tot = *server_tot + 1;
         if (sscanf(line, "server %*s %49[^:]:%d", host, &port) == 2) {
             socket_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -39,7 +40,8 @@ int connect_to_servers(int **sockets, int *server_tot, const char *buffer) {
                 perror("Error creating socket");
                 printf("Error creating socket\n");
                 continue;
-                // return -1;
+                close(socket_fd);
+                return -1;
             }
 
             server_addr.sin_family = AF_INET;
@@ -48,8 +50,8 @@ int connect_to_servers(int **sockets, int *server_tot, const char *buffer) {
                 perror("Error converting IP address");
                 printf("Error converting IP address\n");
                 close(socket_fd);
-                continue;
-                // return -1;
+                // continue;
+                return -1;
             }
 
             if (connect(socket_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
@@ -94,7 +96,7 @@ void connect_and_send(int *client_socket_fd) {
         if (check((n = read(client_socket, buffer + msg_size, sizeof(buffer) - msg_size - 1)), "CONNECTION TIMEOUT"))
         {
             printf("SOCKET TIMEOUT\n");
-            close(client_socket);
+            // close(client_socket);
             return;
         }
         msg_size += n;
@@ -158,7 +160,7 @@ void connect_and_send(int *client_socket_fd) {
     }
     else if (strcmp(command, "put") == 0)
     {
-        send(client_socket, buffer, sizeof(buffer),0);
+        send(client_socket, "WORKKK", sizeof(buffer),0);
 
         snprintf(full_path, sizeof(full_path), "%s/%s", cwd, full_filename);
         printf("filename: %s\n", full_filename);
@@ -180,20 +182,24 @@ void connect_and_send(int *client_socket_fd) {
     }
     else if (strcmp(command, "ls") == 0)
     {
-        char output[BUFSIZE];
-        int out_len = 4;
-        char cmd[BUFSIZ];
-        sprintf(cmd, "ls %s", cwd);
+        int out_len = 0;
+        char file_list[BUFSIZE];
+        char cmd[BUFSIZE];
+        // have to handle if the file doesn't exist
+        sprintf(cmd, "ls %s 2>/dev/null", cwd);
         FILE *fp = popen(cmd, "r");
         if (fp != NULL) {
-            while (fgets(output, sizeof(output) - 1, fp) != NULL) {
-                out_len = strlen(output);
-                sendall(client_socket, output, &out_len);
+            while (fgets(file_list, sizeof(file_list) - 1, fp) != NULL) {
+                out_len = strlen(file_list);
+                // printf("%s", file_list);
+                sendall(client_socket, file_list, &out_len);
             }
             pclose(fp);
         }
         out_len = 4;
+        // close(client_socket);
         sendall(client_socket, "\r\n\r\n", &out_len); // Send end of response
+        // goto get;
     }
     else
     {
@@ -353,3 +359,74 @@ char *str_dup(const char *str) {
     return new_str;
 }
 
+DFSFile* processFile(FILE* file, int* numFiles) {
+    DFSFile* dfsFiles = (DFSFile*) malloc(sizeof(DFSFile) * 1024);
+    *numFiles = 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        int chunk_num;
+        long timestamp, chunk_size;
+        char filename[256];
+
+        sscanf(line, "%d.%ld.%ld.%s", &chunk_num, &timestamp, &chunk_size, filename);
+
+        // printf("chunk_num %d\n", chunk_num);
+
+
+        int fileExists = 0;
+        for (int i = 0; i < *numFiles; i++) {
+            if (strcmp(dfsFiles[i].filename, filename) == 0) {
+                fileExists = 1;
+                if (chunk_num == 1)
+                {
+                    // printf("1\n");
+                    dfsFiles[i].one = 1;
+                }
+                else if (chunk_num == 2)
+                {
+                    // printf("2\n");
+                    dfsFiles[i].two = 1;
+                }
+                else if (chunk_num == 3)
+                {
+                    // printf("3\n");
+                    dfsFiles[i].three = 1;
+                }
+                else if (chunk_num == 4)
+                {
+                    // printf("4\n");
+                    dfsFiles[i].four = 1;
+                }
+                break;
+            }
+        }
+
+        if (!fileExists) {
+            DFSFile newFile;
+            strcpy(newFile.filename, filename);
+            newFile.one = (chunk_num == 1) ? 1 : 0;
+            newFile.two = (chunk_num == 2) ? 1 : 0;
+            newFile.three = (chunk_num == 3) ? 1 : 0;
+            newFile.four = (chunk_num == 4) ? 1 : 0;
+            dfsFiles[*numFiles] = newFile;
+            (*numFiles)++;
+        }
+    }
+
+    return dfsFiles;
+}
+
+void remove_special_characters(char* string) {
+    char* source = string;
+    char* destination = string;
+
+    while (*source) {
+        if (isalnum(*source) || *source == '.') {
+            *destination = *source;
+            destination++;
+        }
+        source++;
+    }
+    *destination = '\0';
+}

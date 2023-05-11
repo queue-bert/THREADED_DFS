@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     int fp;
 
     // change back to 3
-    if (argc < 3)
+    if (argc < 2)
     {
        fprintf(stderr,"usage: %s <cmd> <file(s)>\n", argv[0]);
        exit(0);
@@ -75,6 +75,8 @@ int main(int argc, char **argv) {
     int index = 1;
     char * cmd = argv[1];
 
+    printf("COMMAND: %s\n", cmd);
+
     while (index < argc)
     {
         index++;
@@ -107,8 +109,6 @@ int main(int argc, char **argv) {
 
                 if(msg_size > BUFSIZE - 1 || strstr(buf, "\r\n\r\n")) break;
             }
-
-            // printf("%s\n", buf);
 
             char * carriage;
             char temp_buf[1025];
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
             memset(buf, 0, sizeof(buf));
             while (total_bytes_read < chunk_new->chunk_size)
             {
-                bytes_read = read(chunk_new->sock_origin, buf, sizeof(buf) - 1);
+                bytes_read = recv(chunk_new->sock_origin, buf, sizeof(buf) - 1, 0);
                 buf[BUFSIZE] = '\0';
                 if (bytes_read <= 0) {
                     perror("Error reading from sock_origin");
@@ -241,6 +241,7 @@ int main(int argc, char **argv) {
         curr_chunk = size_chunk;
         int p_sz;
         // First instance
+
         memset(buf, 0, sizeof(buf));
         p_sz = sprintf(buf, "put %d.%ld.%ld.%s\r\n\r\n", 1, curr_time, curr_chunk, filename);
         check(sendall(socks[(-mod + 0) % server_num], buf, &p_sz), "Error sending request header to client\n");
@@ -267,11 +268,11 @@ int main(int argc, char **argv) {
         sendfile(socks[(-mod + 3) % server_num], fp, &start_one, last_chunk);
 
 
-        // free_and_close(&socks, server_tot);
-        // server_tot = 0;
-        // connect_to_servers(&socks, &server_tot, config);
-        // close(fp);
-        // fp = open(filename, O_RDONLY);
+        free_and_close(&socks, server_tot);
+        server_tot = 0;
+        connect_to_servers(&socks, &server_tot, config);
+        close(fp);
+        fp = open(filename, O_RDONLY);
 
         // SECOND CHUNKS
         memset(buf, 0, sizeof(buf));
@@ -308,7 +309,63 @@ int main(int argc, char **argv) {
       }
       else if(!strcmp(cmd,"ls"))
       {
+        FILE *file = fopen("ls.txt", "wb");
+        for(int i = 0; i < server_tot; i++)
+        {
+            off_t msg_size = 0;
+            memset(buf, 0, sizeof(buf));
+            int p_sz = sprintf(buf,"ls ls\r\n\r\n");
+            check(sendall(socks[i], buf, &p_sz), "Error sending request header to client\n");
 
+            while(1)
+            {
+                if(check((n = recv(socks[i], buf+msg_size, sizeof(buf)-msg_size-1, 0)), "CONNECTION TIMEOUT"))
+                {
+                    close(socks[i]);
+                    continue; // if server shuts down before response can be sent we'll just continue getting the other filenames
+                }
+                msg_size += n;
+
+                if(msg_size > BUFSIZE - 1 || strstr(buf, "\r\n\r\n")) break;
+            }
+
+            char * token;
+            char * carriage;
+            char temp_buf[1025];
+
+            if((carriage = strstr(buf, "\r\n\r\n")))
+            {
+                strncpy(temp_buf, buf, carriage - buf);
+            }
+
+            token = strtok(temp_buf, "\n");
+            while (token != NULL)
+            {
+                remove_special_characters(token);
+                // printf("%s\n", token);
+                fprintf(file, "%s\n", token);
+                token = strtok(NULL, "\n");
+            }
+            msg_size = 0;
+        }
+
+        fclose(file);
+        file = fopen("ls.txt", "rb");
+
+        int numFiles;
+        DFSFile *dfsFiles = processFile(file, &numFiles);
+
+        // printf("GOT HERE\n");
+        for (int i = 0; i < numFiles; i++)
+        {
+            // printf("%s\n", dfsFiles[i].filename);
+            if (dfsFiles[i].one == 1 && dfsFiles[i].two == 1 &&
+                dfsFiles[i].three == 1 && dfsFiles[i].four == 1) {
+                printf("%s\n", dfsFiles[i].filename);
+            } else {
+                printf("%s is incomplete\n", dfsFiles[i].filename);
+            }
+        }
       }
     }
     return 0;

@@ -18,6 +18,7 @@
 #include <openssl/evp.h>
 #include "queue.h"
 #include <signal.h>
+#include <ctype.h>
 
 #define BACKLOG 64
 #define POOL_THREADS 10
@@ -30,6 +31,16 @@ typedef struct File {
     int sock_origin;
     struct File * nextfile;
 } File;
+
+typedef struct DFSFile {
+    char filename[256];
+    int one;
+    int two;
+    int three;
+    int four;
+} DFSFile;
+
+DFSFile * processFile(FILE* file, int* numFiles);
 
 extern volatile sig_atomic_t flag;
 
@@ -54,5 +65,7 @@ char *read_file_into_buffer();
 void * thread_function();
 
 char *str_dup(const char *str);
+
+void remove_special_characters(char* string);
 
 #endif
