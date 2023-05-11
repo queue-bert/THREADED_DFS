@@ -75,10 +75,10 @@ int main(int argc, char **argv) {
     while (strcmp(cmd, "exit") != 0)
     {
         sleep(1);
-        printf("AFTER SLEEP\n");
+        // printf("AFTER SLEEP\n");
         server_tot = 0;
         server_num = connect_to_servers(&socks, &server_tot, config);
-        printf("server_tot: %d\n", server_tot);
+        // printf("server_tot: %d\n", server_tot);
         memset(buf, 0, sizeof(buf));
         printf("Please enter msg: ");
         fgets(buf, sizeof(buf)-1, stdin);
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
             while (token != NULL)
             {
                 token += 7;
-                printf("token: %s\n", token);
+                // printf("token: %s\n", token);
                 File *new_file = (File *)malloc(sizeof(File));
                 new_file->sock_origin = socks[i];
                 new_file->nextfile = NULL;
@@ -131,12 +131,9 @@ int main(int argc, char **argv) {
                 char filename_buffer[250];
                 filename_buffer[250] = '\0';
                 sscanf(token, "%d.%ld.%ld.%s", &chunk_num, &new_file->timestamp, &new_file->chunk_size, filename_buffer);
-
+                // printf("timestamp : %ld, chunksize : %ld, chunk_num : %d\n", new_file->timestamp, new_file->chunk_size, new_file->chunk_num);
                 new_file->filename = str_dup(filename_buffer);
-                printf("filename: %s\n", new_file->filename);
 
-
-                printf("chunk_num: %d\n", chunk_num);
                 if (files[chunk_num-1] == NULL)
                 {
                     new_file->chunk_num = chunk_num;
@@ -184,7 +181,7 @@ int main(int argc, char **argv) {
                 }
                 chunk_num = chunk_num->nextfile;
             }
-            int p_sz = sprintf(buf,"get %d.%ld.%ld.%s\r\n\r\n", chunk_new->chunk_num, chunk_num->timestamp, chunk_num->chunk_size, chunk_num->filename);
+            int p_sz = sprintf(buf,"get %d.%ld.%ld.%s\r\n\r\n", chunk_new->chunk_num, chunk_new->timestamp, chunk_new->chunk_size, chunk_new->filename);
             printf("performing get of %s on %d\n", buf, chunk_new->sock_origin);
             check(sendall(chunk_new->sock_origin, buf, &p_sz), "Error sending request header to client\n");
 
@@ -203,6 +200,7 @@ int main(int argc, char **argv) {
                 printf("write buffer: %s\n", buf);
                 fwrite(buf, 1, bytes_read, file);
                 total_bytes_read += bytes_read;
+                memset(buf, 0, sizeof(buf));
             }
 
         }
@@ -307,6 +305,10 @@ int main(int argc, char **argv) {
         free_and_close(&socks, server_tot);
         close(fp);
         continue;
+      }
+      else if(!strcmp(cmd,"ls"))
+      {
+
       }
     }
     return 0;

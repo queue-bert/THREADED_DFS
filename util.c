@@ -150,8 +150,8 @@ void connect_and_send(int *client_socket_fd) {
                     }
                     file_size -= sent;
                 }
-                int out_len = 4;
-                sendall(client_socket, "\r\n\r\n", &out_len);
+                // int out_len = 4;
+                // sendall(client_socket, "\r\n\r\n", &out_len);
             }
             close(filefd);
         }

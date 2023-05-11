@@ -25,8 +25,8 @@
 typedef struct File {
     char * filename;
     int chunk_num;
-    long timestamp;
-    long chunk_size;
+    long timestamp; // time_t
+    long chunk_size; // off_t
     int sock_origin;
     struct File * nextfile;
 } File;
