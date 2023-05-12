@@ -19,6 +19,7 @@
 #include "queue.h"
 #include <signal.h>
 #include <ctype.h>
+#include <limits.h>
 
 #define BACKLOG 64
 #define POOL_THREADS 10
@@ -48,8 +49,6 @@ extern char * cwd;
 
 extern char * config;
 
-int connect_to_servers(int **sockets, int *server_tot, const char *buffer);
-
 char *get_hashed_filename(const char *path);
 
 int string_mod(const char *hashed_path, int modulo);
@@ -60,12 +59,28 @@ int check(int stat, char* message);
 
 int sendall(int s, char *buf, int *len);
 
-char *read_file_into_buffer();
 
 void * thread_function();
 
 char *str_dup(const char *str);
 
 void remove_special_characters(char* string);
+int connects_to_servers(int** sockets, int* server_tot, char** host_info, int num_servers);
+
+char** read_server_file(int* num_servers);
+
+File** file_discovery(int server_num, char** server_info, const char* filename, int * available);
+
+
+// void put_file(char *buffer, int *bytes_written, int file_descriptor);
+void put_file(char *buffer, int *bytes_written, int file_descriptor, int bytes);
+
+void send_file_to_server(char* server_info, const char * filename, int fp, long * start, long curr_chunk, int chunk);
+
+// void send_file_to_server(char ** server_info, const char * filename, int fp, long * start, long curr_chunk, int chunk, int mod, int servernum);
+
+void fetch_chunks(const char *filename, File **files, int files_count, char **hostinfo);
+
+void list_files(char **hostinfo, int server_tot);
 
 #endif

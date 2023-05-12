@@ -55,7 +55,7 @@ debug-dfs: all
 	gnome-terminal -- bash -c "gdb -ex run --args ./dfs ./dfs4 10004; exec bash" &
 
 debug-dfc: all
-	gnome-terminal -- bash -c "gdb -ex run --args ./dfc put dfc.conf foo3; exec bash"
+	gnome-terminal -- bash -c "gdb -ex run --args ./dfc put foo3; exec bash"
 
 debug-all: debug-dfs debug-dfc
 
